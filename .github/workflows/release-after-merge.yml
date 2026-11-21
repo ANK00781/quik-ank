@@ -99,7 +99,7 @@ jobs:
           BRANCH_NAME: ${{ steps.version.outputs.branch_name }}
         run: |
           set -euo pipefail
-          cp fdroid/metadata/dev.octoshrimpy.quik.yml fdroiddata/metadata/dev.octoshrimpy.quik.yml
+          cp fdroid/metadata/dev.octoshrimpy.quik.test.yml fdroiddata/metadata/dev.octoshrimpy.quik.test.yml
           cd fdroiddata
           if git diff --quiet; then
             echo "no_changes=true" >> "$GITHUB_ENV"
@@ -118,7 +118,7 @@ jobs:
           cd fdroiddata
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add metadata/dev.octoshrimpy.quik.yml
+          git add metadata/dev.octoshrimpy.quik.test.yml
           git commit -m "Update QUIK to v${VERSION_NAME}"
           git push --force-with-lease origin "${BRANCH_NAME}"
 

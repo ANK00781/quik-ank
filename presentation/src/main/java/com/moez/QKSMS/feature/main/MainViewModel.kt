@@ -35,6 +35,7 @@ import dev.octoshrimpy.quik.interactor.MarkUnarchived
 import dev.octoshrimpy.quik.interactor.MarkUnpinned
 import dev.octoshrimpy.quik.interactor.MarkUnread
 import dev.octoshrimpy.quik.interactor.MigratePreferences
+import dev.octoshrimpy.quik.interactor.SetConversationCategory
 import dev.octoshrimpy.quik.interactor.SpeakThreads
 import dev.octoshrimpy.quik.interactor.SyncContacts
 import dev.octoshrimpy.quik.interactor.SyncMessages
@@ -43,6 +44,7 @@ import dev.octoshrimpy.quik.manager.ChangelogManager
 import dev.octoshrimpy.quik.manager.PermissionManager
 import dev.octoshrimpy.quik.manager.RatingManager
 import dev.octoshrimpy.quik.model.EmojiSyncNeeded
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.model.SyncLog
 import dev.octoshrimpy.quik.repository.ConversationRepository
 import dev.octoshrimpy.quik.repository.EmojiReactionRepository
@@ -77,6 +79,7 @@ class MainViewModel @Inject constructor(
     private val markUnpinned: MarkUnpinned,
     private val markUnread: MarkUnread,
     private val scheduledMessageRepo: ScheduledMessageRepository,
+    private val setConversationCategory: SetConversationCategory,
     private val speakThreads: SpeakThreads,
     private val navigator: Navigator,
     private val externalNavigator: ExternalNavigator,
@@ -97,6 +100,7 @@ class MainViewModel @Inject constructor(
         disposables += markArchived
         disposables += markUnarchived
         disposables += migratePreferences
+        disposables += setConversationCategory
         disposables += syncContacts
         disposables += syncMessages
 
@@ -167,14 +171,34 @@ class MainViewModel @Inject constructor(
             .debounce(400, TimeUnit.MILLISECONDS)
             .observeOn(AndroidSchedulers.mainThread())
             .withLatestFrom(state) { _, state ->
-                if (state.page is Inbox)
-                    newState {
-                        copy(page = Inbox(data = conversationRepo.getConversations(prefs.unreadAtTop.get())))
+                when (val page = state.page) {
+                    is Inbox -> newState {
+                        copy(
+                            page = Inbox(
+                                data = conversationRepo.getConversations(
+                                    prefs.unreadAtTop.get(),
+                                    category = page.category
+                                ),
+                                category = page.category
+                            )
+                        )
                     }
-                else if (state.page is Archived)
-                    newState {
-                        copy(page = Inbox(data = conversationRepo.getConversations(prefs.unreadAtTop.get(), true)))
+
+                    is Archived -> newState {
+                        copy(
+                            page = Archived(
+                                data = conversationRepo.getConversations(
+                                    prefs.unreadAtTop.get(),
+                                    true,
+                                    page.category
+                                ),
+                                category = page.category
+                            )
+                        )
                     }
+
+                    else -> Unit
+                }
             }
             .autoDisposable(view.scope())
             .subscribe()
@@ -265,7 +289,18 @@ class MainViewModel @Inject constructor(
                 .map { query -> query.trim() }
                 .withLatestFrom(state) { query, state ->
                     if (query.isEmpty() && state.page is Searching) {
-                        newState { copy(page = Inbox(data = conversationRepo.getConversations(prefs.unreadAtTop.get()))) }
+                        val category = (state.page as Searching).category
+                        newState {
+                            copy(
+                                page = Inbox(
+                                    data = conversationRepo.getConversations(
+                                        prefs.unreadAtTop.get(),
+                                        category = category
+                                    ),
+                                    category = category
+                                )
+                            )
+                        }
                     }
                     query
                 }
@@ -273,14 +308,25 @@ class MainViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .doOnNext {
                     newState {
-                        val page = (page as? Searching) ?: Searching()
-                        copy(page = page.copy(loading = true))
+                        val category = when (page) {
+                            is Inbox -> (page as Inbox).category
+                            is Archived -> (page as Archived).category
+                            is Searching -> (page as Searching).category
+                            else -> MessageCategory.ALL
+                        }
+                        val page = (page as? Searching) ?: Searching(category = category)
+                        copy(page = page.copy(loading = true, category = category))
                     }
                 }
                 .observeOn(Schedulers.io())
                 .map(conversationRepo::searchConversations)
                 .autoDisposable(view.scope())
-                .subscribe { data -> newState { copy(page = Searching(loading = false, data = data)) } }
+                .subscribe { data ->
+                    newState {
+                        val category = (page as? Searching)?.category ?: MessageCategory.ALL
+                        copy(page = Searching(loading = false, data = data, category = category))
+                    }
+                }
 
         view.activityResumedIntent
                 .filter { resumed -> !resumed }
@@ -331,12 +377,19 @@ class MainViewModel @Inject constructor(
                         state.page is Inbox && state.page.selected > 0 -> view.clearSelection()
                         state.page is Archived && state.page.selected > 0 -> view.clearSelection()
                         state.page !is Inbox -> {
+                            val category = when (val page = state.page) {
+                                is Archived -> page.category
+                                is Searching -> page.category
+                                else -> MessageCategory.ALL
+                            }
                             newState {
                                 copy(
                                     page = Inbox(
                                         data = conversationRepo.getConversations(
-                                            prefs.unreadAtTop.get()
-                                        )
+                                            prefs.unreadAtTop.get(),
+                                            category = category
+                                        ),
+                                        category = category
                                     )
                                 )
                             }
@@ -360,22 +413,28 @@ class MainViewModel @Inject constructor(
             .doOnNext { drawerItem ->
                 when (drawerItem) {
                     NavItem.INBOX -> newState {
+                        val category = (page as? Inbox)?.category ?: MessageCategory.ALL
                         copy(
                             page = Inbox(
                                 data = conversationRepo.getConversations(
-                                    prefs.unreadAtTop.get()
-                                )
+                                    prefs.unreadAtTop.get(),
+                                    category = category
+                                ),
+                                category = category
                             )
                         )
                     }
 
                     NavItem.ARCHIVED -> newState {
+                        val category = (page as? Archived)?.category ?: MessageCategory.ALL
                         copy(
                             page = Archived(
                                 data = conversationRepo.getConversations(
                                     prefs.unreadAtTop.get(),
-                                    true
-                                )
+                                    true,
+                                    category
+                                ),
+                                category = category
                             )
                         )
                     }
@@ -385,6 +444,47 @@ class MainViewModel @Inject constructor(
             }
             .autoDisposable(view.scope())
             .subscribe()
+
+        view.categoryIntent
+            .distinctUntilChanged()
+            .withLatestFrom(state) { category, state ->
+                when (state.page) {
+                    is Inbox -> newState {
+                        copy(
+                            page = Inbox(
+                                data = conversationRepo.getConversations(
+                                    prefs.unreadAtTop.get(),
+                                    category = category
+                                ),
+                                category = category
+                            )
+                        )
+                    }
+
+                    is Archived -> newState {
+                        copy(
+                            page = Archived(
+                                data = conversationRepo.getConversations(
+                                    prefs.unreadAtTop.get(),
+                                    true,
+                                    category
+                                ),
+                                category = category
+                            )
+                        )
+                    }
+
+                    else -> Unit
+                }
+            }
+            .autoDisposable(view.scope())
+            .subscribe()
+
+        view.categoryChangedIntent
+            .autoDisposable(view.scope())
+            .subscribe { (threadId, category) ->
+                setConversationCategory.execute(SetConversationCategory.Params(threadId, category))
+            }
 
         view.optionsItemIntent
             .filter { itemId -> itemId == R.id.select_all }
@@ -487,6 +587,13 @@ class MainViewModel @Inject constructor(
             .mapNotNull { conversationId -> conversationRepo.getConversation(conversationId) }
             .autoDisposable(view.scope())
             .subscribe { conversation -> view.showRenameDialog(conversation.name) }
+
+        view.optionsItemIntent
+            .filter { itemId -> itemId == R.id.categorize }
+            .withLatestFrom(view.conversationsSelectedIntent) { _, conversationIds -> conversationIds }
+            .filter { conversationIds -> conversationIds.size == 1 }
+            .autoDisposable(view.scope())
+            .subscribe { conversationIds -> view.showCategoryDialog(conversationIds.first()) }
 
         view.rateIntent
                 .autoDisposable(view.scope())

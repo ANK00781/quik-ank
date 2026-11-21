@@ -1,0 +1,18 @@
+PackageName: dev.octoshrimpy.quik.test
+Name: QUIK Test
+Summary: The most beautiful SMS messenger for Android
+License: GPL-3.0
+AuthorName: Marcos Jones
+SourceCode: https://github.com/ANK00781/quik-ank
+IssueTracker: https://github.com/ANK00781/quik-ank/issues
+WebSite: ""
+Categories:
+  - Communication
+CurrentVersion: "4.3.7"
+CurrentVersionCode: 2239
+Description: |
+  QUIK Test is an open source replacement for the stock messaging app on Android.
+  It displays SMS/MMS conversations, supports scheduled sends, backups, voice
+  messages, speech-to-text and text-to-speech, and more.
+  It works fully offline: all messages are stored on the device and no data is
+  sent to any server.

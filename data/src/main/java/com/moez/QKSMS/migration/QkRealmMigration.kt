@@ -21,6 +21,7 @@ package dev.octoshrimpy.quik.migration
 import android.annotation.SuppressLint
 import dev.octoshrimpy.quik.extensions.map
 import dev.octoshrimpy.quik.mapper.CursorToContactImpl
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.util.Preferences
 import io.realm.DynamicRealm
 import io.realm.DynamicRealmObject
@@ -37,7 +38,7 @@ class QkRealmMigration @Inject constructor(
 ) : RealmMigration {
 
     companion object {
-        const val SCHEMA_VERSION: Long = 15
+        const val SCHEMA_VERSION: Long = 16
     }
 
     @SuppressLint("ApplySharedPref")
@@ -298,6 +299,15 @@ class QkRealmMigration @Inject constructor(
             }
 
             version ++
+        }
+
+        if (version == 15L) {
+            realm.schema.get("Conversation")
+                ?.addField("category", String::class.java, FieldAttribute.REQUIRED, FieldAttribute.INDEXED)
+                ?.addField("categoryManuallySet", Boolean::class.java, FieldAttribute.REQUIRED)
+                ?.transform { conversation -> conversation.setString("category", MessageCategory.PERSONAL) }
+
+            version++
         }
 
         check(version >= SCHEMA_VERSION) {

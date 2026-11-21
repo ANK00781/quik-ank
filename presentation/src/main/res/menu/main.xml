@@ -97,4 +97,11 @@
         android:visible="false"
         app:showAsAction="ifRoom" />
 
+    <item
+        android:id="@+id/categorize"
+        android:icon="@drawable/ic_baseline_folder_24"
+        android:title="@string/main_menu_categorize"
+        android:visible="false"
+        app:showAsAction="ifRoom" />
+
 </menu>

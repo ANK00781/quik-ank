@@ -28,6 +28,8 @@ open class Conversation(
     @Index var archived: Boolean = false,
     @Index var blocked: Boolean = false,
     @Index var pinned: Boolean = false,
+    @Index var category: String = MessageCategory.PERSONAL,
+    var categoryManuallySet: Boolean = false,
     var recipients: RealmList<Recipient> = RealmList(),
     var lastMessage: Message? = null,
     var draft: String = "",

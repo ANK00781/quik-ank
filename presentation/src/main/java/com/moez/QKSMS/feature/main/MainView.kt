@@ -32,6 +32,8 @@ interface MainView : QkView<MainState> {
     val drawerToggledIntent: Observable<Boolean>
     val homeIntent: Observable<*>
     val navigationIntent: Observable<NavItem>
+    val categoryIntent: Observable<String>
+    val categoryChangedIntent: Observable<Pair<Long, String>>
     val optionsItemIntent: Observable<Int>
     val dismissRatingIntent: Observable<*>
     val rateIntent: Observable<*>
@@ -52,6 +54,7 @@ interface MainView : QkView<MainState> {
     fun showBlockingDialog(conversations: List<Long>, block: Boolean)
     fun showDeleteDialog(conversations: List<Long>)
     fun showRenameDialog(conversationName: String)
+    fun showCategoryDialog(conversationId: Long)
     fun showChangelog(changelog: ChangelogManager.CumulativeChangelog)
     fun showArchivedSnackbar(countConversationsArchived: Int, isArchiving: Boolean)
     fun drawerToggled(opened: Boolean)

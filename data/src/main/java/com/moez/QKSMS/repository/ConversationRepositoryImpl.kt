@@ -30,9 +30,11 @@ import dev.octoshrimpy.quik.mapper.CursorToRecipient
 import dev.octoshrimpy.quik.model.Contact
 import dev.octoshrimpy.quik.model.Conversation
 import dev.octoshrimpy.quik.model.Message
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.model.Recipient
 import dev.octoshrimpy.quik.model.SearchResult
 import dev.octoshrimpy.quik.util.PhoneNumberUtils
+import dev.octoshrimpy.quik.util.SmsCategorizer
 import dev.octoshrimpy.quik.util.tryOrNull
 import io.reactivex.Completable
 import io.reactivex.Observable
@@ -56,7 +58,8 @@ class ConversationRepositoryImpl @Inject constructor(
     private fun getConversationsBase(
         realm: Realm,
         unreadAtTop: Boolean,
-        archived: Boolean
+        archived: Boolean,
+        category: String = MessageCategory.ALL
     ): RealmQuery<Conversation> {
         val sortOrder = mutableListOf("pinned", "draft", "lastMessage.date")
         val sortDirections = mutableListOf(Sort.DESCENDING, Sort.DESCENDING, Sort.DESCENDING)
@@ -66,11 +69,17 @@ class ConversationRepositoryImpl @Inject constructor(
             sortDirections.add(0, Sort.ASCENDING)
         }
 
-        return realm
+        var query = realm
             .where(Conversation::class.java)
             .notEqualTo("id", 0L)
             .equalTo("archived", archived)
             .equalTo("blocked", false)
+
+        if (category != MessageCategory.ALL) {
+            query = query.equalTo("category", category)
+        }
+
+        return query
             .isNotEmpty("recipients")
             .beginGroup()
             .isNotNull("lastMessage")
@@ -82,9 +91,10 @@ class ConversationRepositoryImpl @Inject constructor(
 
     override fun getConversations(
         unreadAtTop: Boolean,
-        archived: Boolean
+        archived: Boolean,
+        category: String
     ): RealmResults<Conversation> =
-        getConversationsBase(Realm.getDefaultInstance(), unreadAtTop, archived)
+        getConversationsBase(Realm.getDefaultInstance(), unreadAtTop, archived, category)
             .findAllAsync()
 
     override fun getConversationsSnapshot(unreadAtTop: Boolean): List<Conversation> =
@@ -138,6 +148,21 @@ class ConversationRepositoryImpl @Inject constructor(
                 }
             }
         }.subscribeOn(Schedulers.io()) // Ensure the operation is performed on a background thread
+
+    override fun setConversationCategory(id: Long, category: String, manuallySet: Boolean) =
+        Completable.fromAction {
+            Realm.getDefaultInstance().use { realm ->
+                realm.executeTransaction {
+                    realm.where(Conversation::class.java)
+                        .equalTo("id", id)
+                        .findFirst()
+                        ?.apply {
+                            this.category = category
+                            this.categoryManuallySet = manuallySet
+                        }
+                }
+            }
+        }.subscribeOn(Schedulers.io())
 
     override fun searchConversations(query: CharSequence): List<SearchResult> {
         val realm = Realm.getDefaultInstance()
@@ -363,6 +388,15 @@ class ConversationRepositoryImpl @Inject constructor(
             }
         }
 
+    private fun applyCategory(conversation: Conversation, message: Message?) {
+        if (conversation.categoryManuallySet) return
+        conversation.category = SmsCategorizer.categorize(
+            message?.getText() ?: "",
+            message?.address ?: conversation.recipients.firstOrNull()?.address ?: "",
+            conversation.recipients.any { it.contact != null }
+        )
+    }
+
     override fun updateConversations(threadIds: Collection<Long>) =
         Realm.getDefaultInstance().use { realm ->
             realm.refresh()
@@ -383,6 +417,7 @@ class ConversationRepositoryImpl @Inject constructor(
                     realm.executeTransaction {
                         conversationAndMessages.forEach { (conversation, message) ->
                             conversation.lastMessage = message
+                            applyCategory(conversation, message)
                         }
                     }
                 }
@@ -529,6 +564,8 @@ class ConversationRepositoryImpl @Inject constructor(
                                 .equalTo("threadId", threadId)
                                 .sort("date", Sort.DESCENDING)
                                 .findFirst()
+
+                            applyCategory(this, lastMessage)
                         }
 
                         realm.executeTransaction { it.insertOrUpdate(conversation) }
@@ -565,6 +602,7 @@ class ConversationRepositoryImpl @Inject constructor(
                     if (recipients.size <= 1) false
                     else sendAsGroup
             }
+            applyCategory(conversation, null)
             realm.executeTransaction { it.copyToRealmOrUpdate(conversation) }
             return conversation
         }

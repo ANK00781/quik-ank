@@ -47,6 +47,7 @@ import dev.octoshrimpy.quik.model.Recipient
 import dev.octoshrimpy.quik.model.SyncLog
 import dev.octoshrimpy.quik.interactor.DeduplicateMessages
 import dev.octoshrimpy.quik.util.PhoneNumberUtils
+import dev.octoshrimpy.quik.util.SmsCategorizer
 import dev.octoshrimpy.quik.util.tryOrNull
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
@@ -106,9 +107,11 @@ class SyncRepositoryImpl @Inject constructor(
                         .isNotEmpty("name")
                         .or()
                         .isNotNull("blockingClient")
-                        .or()
-                        .isNotEmpty("blockReason")
-                        .endGroup()
+                         .or()
+                         .isNotEmpty("blockReason")
+                         .or()
+                         .equalTo("categoryManuallySet", true)
+                         .endGroup()
                         .findAll()
                 ).associateBy { conversation -> conversation.id }.toMutableMap()
 
@@ -195,11 +198,21 @@ class SyncRepositoryImpl @Inject constructor(
                                     blockingClient = persistedConversation.blockingClient
                                     blockReason = persistedConversation.blockReason
                                     sendAsGroup = persistedConversation.sendAsGroup
+                                    category = persistedConversation.category
+                                    categoryManuallySet = persistedConversation.categoryManuallySet
                                 }
                                 lastMessage = realm.where(Message::class.java)
                                     .sort("date", Sort.DESCENDING)
                                     .equalTo("threadId", id)
                                     .findFirst()
+
+                                if (!categoryManuallySet) {
+                                    category = SmsCategorizer.categorize(
+                                        lastMessage?.getText() ?: "",
+                                        lastMessage?.address ?: "",
+                                        false
+                                    )
+                                }
                             }
                             realm.insertOrUpdate(conversation)
                         }

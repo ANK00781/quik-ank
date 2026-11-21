@@ -19,6 +19,7 @@
 package dev.octoshrimpy.quik.repository
 
 import dev.octoshrimpy.quik.model.Conversation
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.model.Recipient
 import dev.octoshrimpy.quik.model.SearchResult
 import io.reactivex.Completable
@@ -27,13 +28,19 @@ import io.realm.RealmResults
 
 interface ConversationRepository {
 
-    fun getConversations(unreadAtTop: Boolean, archived: Boolean = false): RealmResults<Conversation>
+    fun getConversations(
+        unreadAtTop: Boolean,
+        archived: Boolean = false,
+        category: String = MessageCategory.ALL
+    ): RealmResults<Conversation>
 
     fun getConversationsSnapshot(unreadAtTop: Boolean): List<Conversation>
 
     fun getTopConversations(): List<Conversation>
 
     fun setConversationName(id: Long, name: String): Completable
+
+    fun setConversationCategory(id: Long, category: String, manuallySet: Boolean = true): Completable
 
     fun searchConversations(query: CharSequence): List<SearchResult>
 

@@ -147,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          files=(presentation/build/outputs/apk/release/QUIK-v*-release.apk)
+          files=(presentation/build/outputs/apk/release/QUIKTest-v*-release.apk)
           if [[ "${#files[@]}" -ne 1 ]]; then
             echo "::error title=APK lookup failed::Expected 1 APK, found ${#files[@]} (${files[*]:-none})."
             exit 1
@@ -160,7 +160,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          files=(presentation/build/outputs/apk/fdroid/QUIK-v*-fdroid.apk)
+          files=(presentation/build/outputs/apk/fdroid/QUIKTest-v*-fdroid.apk)
           if [[ "${#files[@]}" -ne 1 ]]; then
             echo "::error title=APK lookup failed::Expected 1 APK, found ${#files[@]} (${files[*]:-none})."
             exit 1

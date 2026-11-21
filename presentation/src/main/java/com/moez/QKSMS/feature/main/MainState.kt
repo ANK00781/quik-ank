@@ -19,6 +19,7 @@
 package dev.octoshrimpy.quik.feature.main
 
 import dev.octoshrimpy.quik.model.Conversation
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.model.SearchResult
 import dev.octoshrimpy.quik.repository.SyncRepository
 import io.realm.RealmResults
@@ -43,12 +44,14 @@ data class Inbox(
     val markPinned: Boolean = true,
     val markRead: Boolean = false,
     val data: RealmResults<Conversation>? = null,
-    val selected: Int = 0
+    val selected: Int = 0,
+    val category: String = MessageCategory.ALL
 ) : MainPage()
 
 data class Searching(
     val loading: Boolean = false,
-    val data: List<SearchResult>? = null
+    val data: List<SearchResult>? = null,
+    val category: String = MessageCategory.ALL
 ) : MainPage()
 
 data class Archived(
@@ -56,5 +59,6 @@ data class Archived(
     val markPinned: Boolean = true,
     val markRead: Boolean = false,
     val data: RealmResults<Conversation>? = null,
-    val selected: Int = 0
+    val selected: Int = 0,
+    val category: String = MessageCategory.ALL
 ) : MainPage()

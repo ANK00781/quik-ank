@@ -63,6 +63,7 @@ import dev.octoshrimpy.quik.feature.changelog.ChangelogDialog
 import dev.octoshrimpy.quik.feature.conversations.ConversationItemTouchCallback
 import dev.octoshrimpy.quik.feature.conversations.ConversationsAdapter
 import dev.octoshrimpy.quik.manager.ChangelogManager
+import dev.octoshrimpy.quik.model.MessageCategory
 import dev.octoshrimpy.quik.repository.SyncRepository
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -108,6 +109,8 @@ class MainActivity : QkThemedActivity(), MainView {
                 binding.drawer.invite.clicks().map { NavItem.INVITE })
         )
     }
+    override val categoryIntent: Subject<String> = PublishSubject.create()
+    override val categoryChangedIntent: Subject<Pair<Long, String>> = PublishSubject.create()
     override val optionsItemIntent: Subject<Int> = PublishSubject.create()
     override val dismissRatingIntent by lazy { binding.drawer.rateDismiss.clicks() }
     override val rateIntent by lazy { binding.drawer.rateOkay.clicks() }
@@ -165,6 +168,17 @@ class MainActivity : QkThemedActivity(), MainView {
 
         itemTouchCallback.adapter = conversationsAdapter
         conversationsAdapter.autoScrollToStart(binding.recyclerView)
+
+        binding.categoryAll.clicks().map { MessageCategory.ALL }
+            .autoDisposable(scope()).subscribe(categoryIntent)
+        binding.categoryPersonal.clicks().map { MessageCategory.PERSONAL }
+            .autoDisposable(scope()).subscribe(categoryIntent)
+        binding.categoryTransactions.clicks().map { MessageCategory.TRANSACTIONS }
+            .autoDisposable(scope()).subscribe(categoryIntent)
+        binding.categoryPromotions.clicks().map { MessageCategory.PROMOTIONS }
+            .autoDisposable(scope()).subscribe(categoryIntent)
+        binding.categoryOther.clicks().map { MessageCategory.OTHER }
+            .autoDisposable(scope()).subscribe(categoryIntent)
 
         // Don't allow clicks to pass through the drawer layout
         binding.drawer.root.clicks().autoDisposable(scope()).subscribe()
@@ -260,7 +274,17 @@ class MainActivity : QkThemedActivity(), MainView {
                     selectedConversations > 1
             findItem(R.id.block)?.isVisible = selectedConversations != 0
             findItem(R.id.rename)?.isVisible = selectedConversations == 1
+            findItem(R.id.categorize)?.isVisible = selectedConversations == 1
         }
+
+        val category = when (state.page) {
+            is Inbox -> state.page.category
+            is Archived -> state.page.category
+            is Searching -> state.page.category
+            else -> MessageCategory.ALL
+        }
+        binding.categoryBar.setVisible(state.page is Inbox || state.page is Archived)
+        updateCategoryChips(category)
 
         binding.drawer.rateLayout.setVisible(state.showRating)
 
@@ -443,6 +467,48 @@ class MainActivity : QkThemedActivity(), MainView {
         )
             .setText(conversationName)
             .show()
+
+    override fun showCategoryDialog(conversationId: Long) {
+        val categories = listOf(
+            MessageCategory.PERSONAL,
+            MessageCategory.TRANSACTIONS,
+            MessageCategory.PROMOTIONS,
+            MessageCategory.OTHER
+        )
+        val labels: List<CharSequence> = listOf(
+            getString(R.string.category_personal),
+            getString(R.string.category_transactions),
+            getString(R.string.category_promotions),
+            getString(R.string.category_other)
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.category_dialog_title)
+            .setItems(labels.toTypedArray()) { _, which ->
+                categoryChangedIntent.onNext(conversationId to categories[which])
+            }
+            .setNegativeButton(R.string.button_cancel, null)
+            .show()
+    }
+
+    private fun updateCategoryChips(selected: String) {
+        fun update(chip: android.widget.TextView, active: Boolean) {
+            chip.setBackgroundTint(
+                if (active) colors.theme().theme else resolveThemeColor(R.attr.bubbleColor)
+            )
+            chip.setTextColor(
+                resolveThemeColor(
+                    if (active) android.R.attr.textColorPrimary
+                    else android.R.attr.textColorSecondary
+                )
+            )
+        }
+
+        update(binding.categoryAll, selected == MessageCategory.ALL)
+        update(binding.categoryPersonal, selected == MessageCategory.PERSONAL)
+        update(binding.categoryTransactions, selected == MessageCategory.TRANSACTIONS)
+        update(binding.categoryPromotions, selected == MessageCategory.PROMOTIONS)
+        update(binding.categoryOther, selected == MessageCategory.OTHER)
+    }
 
     override fun showChangelog(changelog: ChangelogManager.CumulativeChangelog) =
         changelogDialog.show(changelog)
